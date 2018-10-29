@@ -1,0 +1,9 @@
+---
+  - name: "facteur"
+    signals:
+      - order: "Quand est passé le facteur"
+    neurons:
+      - script:
+          path: "scripts/facteur.py"
+          say_template: "{{ output }}"
+
