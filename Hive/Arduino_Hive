@@ -1,0 +1,131 @@
+/* How to use the DHT-22 sensor with Arduino uno
+   Temperature and humidity sensor
+*/
+
+//Libraries
+#include <DHT.h>;
+#include <OneWire.h> 
+#include <DallasTemperature.h>
+#include <SoftwareSerial.h>
+#include <HX711_ADC.h>
+HX711_ADC LoadCell(A1,A2);
+
+//Constants
+#define ONE_WIRE_BUS 8
+#define DHTPIN 7     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
+SoftwareSerial SoftSerial(2, 3);
+unsigned char buffer[200];                   // buffer array for data receive over serial port
+int count=0; 
+String inputString = "";
+bool stringComplete = false;
+
+//Variables
+int chk;
+float hum;  //Stores humidity value
+float temp; //Stores temperature value
+
+/********************************************************************/
+// Setup a oneWire instance to communicate with any OneWire devices  
+// (not just Maxim/Dallas temperature ICs) 
+OneWire oneWire(ONE_WIRE_BUS); 
+/********************************************************************/
+// Pass our oneWire reference to Dallas Temperature. 
+DallasTemperature sensors(&oneWire);
+/********************************************************************/
+
+void setup()
+{
+  SoftSerial.begin(9600);                 // the SoftSerial baud rate
+  Serial.begin(115200);
+  dht.begin();
+  sensors.begin(); 
+  LoadCell.begin();
+  LoadCell.start(2000);
+  LoadCell.setCalFactor(999.0);
+  inputString.reserve(200);
+}
+
+void loop()
+{
+    delay(2000);
+    
+      //Read data and store it to variables hum and temp
+      hum = dht.readHumidity();
+      temp= dht.readTemperature();
+      sensors.requestTemperatures(); // Send the command to get temperature readings 
+      //Print temp and humidity values to serial monitor
+      Serial.print("External temp is: "); 
+      Serial.print(sensors.getTempCByIndex(0)); // Why "byIndex"?  
+      Serial.print(" °C, Humidity: ");
+      Serial.print(hum);
+      Serial.print(" %, Internal Temp is : ");
+      Serial.print(temp);
+      Serial.println(" °C");
+
+      LoadCell.update();
+      float i = LoadCell.getData();
+      Serial.print(i);
+      Serial.println(" Kg");
+      getGPS();
+      stringComplete = false;
+    
+    delay(10000); //Delay 2 sec.
+}
+
+void getGPS() {
+  if (SoftSerial.available())                    
+    {
+        char currentchar = '.';
+        while(SoftSerial.available())
+        {
+          char currentchar = SoftSerial.read();
+          if(currentchar == '$') 
+           {
+            buffer[count++]='$';
+            break;
+            }
+          }
+        currentchar = '.';
+        while(SoftSerial.available() && currentchar != '*' && currentchar != '$')            
+        {
+            currentchar=SoftSerial.read();   
+            buffer[count++]=currentchar;
+            if(count == 200)break;
+        }
+        if(isGPSGPGGA(buffer) == 1) 
+        {
+        Serial.write(buffer, count);
+        Serial.println("");
+        }
+        clearBufferArray();                      
+        count = 0;                               
+    }
+}
+ 
+int isGPSGPGGA(unsigned char* trameGPS) {
+  if(trameGPS[0] == '$' && trameGPS[1] == 'G' && trameGPS[2] == 'P' && trameGPS[3] == 'G' && trameGPS[4] == 'G' && trameGPS[5] == 'A')
+    return 1;
+  else
+    return 0;
+  }
+
+void serialEvent(){
+  while(Serial.available()){
+    char inChar = (char)Serial.read();
+    inputString += inChar;
+    if (inChar == '\n'){
+      stringComplete = true;
+    }
+  }
+}
+
+void clearBufferArray()                     // function to clear buffer array
+{
+    for (int i=0; i<count;i++)
+    {
+        buffer[i]=NULL;
+    }                      // clear all index of array with command NULL
+}
+   
